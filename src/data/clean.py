@@ -55,6 +55,7 @@ def clean_dataset(df):
         "Depression during pregnancy (PHQ2)",
         "PHQ9 Result",
         "PHQ9 Score",
+        "EPDS Score",
         "EPDS Result",
 
         # Variables with null / unusable information
