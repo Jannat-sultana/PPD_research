@@ -1,0 +1,30 @@
+# Virtual environment
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Raw data
+src/raw/*.csv
+
+# Generated processed data
+src/processed/*.csv
+src/processed/splits/*.csv
+
+# Model files
+results/models/*.pkl
+results/models/*.joblib
+results/models/*.pt
+results/models/*.bin
+
+# Results
+results/metrics/*.csv
+results/figures/*.png
+
+# Environment
+.env
