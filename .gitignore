@@ -23,8 +23,8 @@ results/models/*.pt
 results/models/*.bin
 
 # Results
-results/metrics/*.csv
-results/figures/*.png
+#results/metrics/*.csv
+#results/figures/*.png
 
 # Environment
 .env
