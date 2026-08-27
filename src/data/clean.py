@@ -86,9 +86,12 @@ def clean_dataset(df):
     # ==================================================
 
     rename_map = {
+        "High School": "high school",
         "High school": "high school",
-        "Primary school": "primary school",
+        "Primary school": "high school",
+        "Primary School": "primary school",
         "House wife": "housewife",
+        "More than two": "more than two",
         "More than Two": "more than two"
     }
 
@@ -112,8 +115,8 @@ def clean_dataset(df):
     education_map = {
         "University": "university",
         "College": "college",
-        "High School": "high school",
-        "Primary School": "primary school"
+        #"High School": "high school",
+        #"Primary School": "primary school"
     }
 
     df["Education Level"] = \
@@ -192,19 +195,21 @@ def clean_dataset(df):
     # 11. Education
     # ==================================================
 
-    education_binary_map = {
-        "University": 0,
-        "Pre-university": 1
+    education_map = {
+        "primary school": 0,
+        "high school": 1,
+        "college": 2,
+        "university": 3
     }
 
     df["Education Level"] = \
         df["Education Level"].map(
-            education_binary_map
+            education_map
         )
 
     df["Husband's education level"] = \
         df["Husband's education level"].map(
-            education_binary_map
+            education_map
         )
 
     # ==================================================
