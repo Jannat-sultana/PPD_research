@@ -69,6 +69,8 @@ def clean_dataset(df):
     mode_columns = [
         "Education Level",
         "Husband's education level",
+        #"Occupation After Your Latest Childbirth",
+        #"Total children",
         "Husband’s monthly income",
         "Trust and share feelings"
     ]
@@ -92,7 +94,9 @@ def clean_dataset(df):
         "Primary School": "primary school",
         "House wife": "housewife",
         "More than two": "more than two",
-        "More than Two": "more than two"
+        "More than Two": "more than two",
+        "One": "one",
+        "Two": "two"
     }
 
     columns_to_standardize = [
@@ -144,14 +148,19 @@ def clean_dataset(df):
             occupation_map
         )
 
+    df["Occupation After Your Latest Childbirth"] = \
+        df["Occupation After Your Latest Childbirth"].replace(
+            occupation_map
+        )
+
     # ==================================================
     # 8. Encode Total children
     # ==================================================
 
     children_map = {
-        "One": 1,
-        "Two": 2,
-	    "More than two": 3
+        "one": 1,
+        "two": 2,
+	    "more than two": 3
     }
 
     df["Total children"] = \
@@ -244,14 +253,10 @@ def clean_dataset(df):
     }
 
     df["Occupation before latest pregnancy"] = \
-        df[
-            "Occupation before latest pregnancy"
-        ].map(occupation_encoding)
+        df["Occupation before latest pregnancy"].map(occupation_encoding)
 
     df["Occupation After Your Latest Childbirth"] = \
-        df[
-            "Occupation before latest pregnancy"
-        ].map(occupation_encoding)
+        df["Occupation After Your Latest Childbirth"].map(occupation_encoding)
 
     # ==================================================
     # 14. Family type
