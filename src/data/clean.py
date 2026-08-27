@@ -411,7 +411,7 @@ def clean_dataset(df):
         "Breastfeed",
         "Newborn illness",
         "Worry about newborn",
-        "Relax/sleep when newborn is tended ",
+        "Relax/sleep when newborn is tended",
         "Relax/sleep when the newborn is asleep",
         "Angry after latest child birth"
     ]
