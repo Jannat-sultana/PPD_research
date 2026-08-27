@@ -44,17 +44,6 @@ def clean_dataset(df):
 
     df = df.drop(columns=columns_to_drop)
 
-    # ==================================================
-    # Rename target
-    # ==================================================
-
-    df.rename(
-        columns={
-            "EPDS Result": TARGET
-        },
-        inplace=True
-    )
-
     # ===============================
     # 3. Remove null columns 
     # ===============================
@@ -72,7 +61,7 @@ def clean_dataset(df):
     ]
 
     df = df.drop(columns=columns_to_drop)
-
+    df.columns = df.columns.str.strip()
     # ==================================================
     # 4. Fill missing categorical values
     # ==================================================
@@ -97,14 +86,15 @@ def clean_dataset(df):
     # ==================================================
 
     rename_map = {
-        "High school": "High School",
-        "Primary school": "Primary School",
-        "House wife": "Housewife",
-        "More than Two": "More than two"
+        "High school": "high school",
+        "Primary school": "primary school",
+        "House wife": "housewife",
+        "More than Two": "more than two"
     }
 
     columns_to_standardize = [
         "Occupation before latest pregnancy",
+        "Occupation After Your Latest Childbirth",
         "Total children",
         "Education Level",
         "Husband's education level"
@@ -120,10 +110,10 @@ def clean_dataset(df):
     # ==================================================
 
     education_map = {
-        "University": "University",
-        "College": "Pre-university",
-        "High School": "Pre-university",
-        "Primary School": "Pre-university"
+        "University": "university",
+        "College": "college",
+        "High School": "high school",
+        "Primary School": "primary school"
     }
 
     df["Education Level"] = \
@@ -137,13 +127,13 @@ def clean_dataset(df):
     # ==================================================
 
     occupation_map = {
-        "Housewife": "Housewife",
-        "Student": "Student",
-        "Teacher": "Working",
-        "Service": "Working",
-        "Doctor": "Working",
-        "Business": "Working",
-        "Other": "Working"
+        "Housewife": "housewife",
+        "Student": "student",
+        "Teacher": "teacher",
+        "Service": "service",
+        "Doctor": "doctor",
+        "Business": "business",
+        "Other": "other"
     }
 
     df["Occupation before latest pregnancy"] = \
@@ -225,8 +215,8 @@ def clean_dataset(df):
         "Less than 5000": 0,
         "5000 to 10000": 1,
         "10000 to 20000": 2,
-	"20000 to 30000": 3,
-	"More than 30000": 4
+	    "20000 to 30000": 3,
+	    "More than 30000": 4
     }
 
     df["Husband’s monthly income"] = \
@@ -239,12 +229,21 @@ def clean_dataset(df):
     # ==================================================
 
     occupation_encoding = {
-        "Housewife": 0,
-        "Student": 1,
-        "Working": 2
+        "housewife": 0,
+        "student": 1,
+        "teacher": 2,
+        "service": 3,
+        "doctor": 4,
+        "business": 5,
+        "other": 6
     }
 
     df["Occupation before latest pregnancy"] = \
+        df[
+            "Occupation before latest pregnancy"
+        ].map(occupation_encoding)
+
+    df["Occupation After Your Latest Childbirth"] = \
         df[
             "Occupation before latest pregnancy"
         ].map(occupation_encoding)
@@ -346,6 +345,81 @@ def clean_dataset(df):
             "Pregnancy length"
         ].map(pregnancy_length_map)
 
+
+    # ==================================================
+    # 21. Relationship with newborn
+    # ==================================================
+
+    newborn_relationship_map = {
+        "Bad": 0,
+        "Neutral": 1,
+        "Good": 2,
+        "Very good": 3
+    }
+
+    df["Relationship with the newborn"] = \
+        df["Relationship with the newborn"].map(
+            newborn_relationship_map
+        )
+
+
+    # ==================================================
+    # 22. Relationship between father and newborn
+    # ==================================================
+
+    father_newborn_relationship_map = {
+        "Bad": 0,
+        "Neutral": 1,
+        "Good": 2,
+        "Very good": 3
+    }
+
+    df["Relationship between father and newborn"] = \
+        df["Relationship between father and newborn"].map(
+            father_newborn_relationship_map
+        )
+
+
+    # ==================================================
+    # 23. Age of newborn
+    # ==================================================
+
+    newborn_age_map = {
+        "0 to 6 months": 0,
+        "6 months to 1 year": 1,
+        "1 year to 1.5 year": 2,
+        "Older than 1.5 year": 3
+    }
+
+    df["Age of newborn"] = \
+        df["Age of newborn"].map(
+            newborn_age_map
+        )
+
+
+    # ==================================================
+    # 24. Birth compliancy
+    # ==================================================
+
+    yes_no_map = {
+        "Yes": 1,
+        "No": 0
+    }
+
+    binary_columns_after_birth = [
+        "Birth compliancy",
+        "Breastfeed",
+        "Newborn illness",
+        "Worry about newborn",
+        "Relax/sleep when newborn is tended ",
+        "Relax/sleep when the newborn is asleep",
+        "Angry after latest child birth"
+    ]
+
+    for column in binary_columns_after_birth:
+
+        if column in df.columns:
+            df[column] = df[column].map(yes_no_map)
 
 
     return df
