@@ -10,3 +10,11 @@ imbalanced-learn
 pyyaml
 shap
 jupyter
+
+torch
+transformers
+datasets
+accelerate
+sentencepiece
+safetensors
+tqdm

@@ -1,0 +1,112 @@
+seed: 42
+
+data:
+  target: Risk
+
+  cleaned_path: src/processed/cleaned_dataset.csv
+
+  train_path: src/processed/splits/train.csv
+  test_path: src/processed/splits/test.csv
+
+  selected_train_path: src/processed/selected_features/train_selected.csv
+  selected_test_path: src/processed/selected_features/test_selected.csv
+
+  selected_features_path: src/processed/selected_features/selected_features.txt
+
+
+feature_selection:
+
+  # Maximum number of features to retain.
+  # Change after inspecting results.
+  n_features: 10
+
+  methods:
+    - rfecv
+    - rfe
+    - anova
+
+  rfecv:
+    step: 1
+    cv: 5
+    scoring: f1
+    min_features_to_select: 5
+
+  rfe:
+    n_features: 10
+
+  anova:
+    k: 10
+
+
+text:
+
+  text_column: text
+
+  include_target: false
+
+  separator: " "
+
+
+transformer:
+
+  max_length: 256
+
+  batch_size: 16
+  eval_batch_size: 32
+
+  learning_rate: 2.0e-5
+
+  weight_decay: 0.01
+
+  epochs: 5
+
+  warmup_ratio: 0.1
+
+  dropout: 0.2
+
+  early_stopping_patience: 2
+
+
+models:
+
+  bert:
+    name: bert-base-uncased
+
+  biobert:
+    name: dmis-lab/biobert-base-cased-v1.1
+
+  clinicalbert:
+    name: emilyalsentzer/ClinicalBERT
+
+  bioclinicalbert:
+    name: emilyalsentzer/Bio_ClinicalBERT
+
+  dischargebert:
+    #name: REPLACE_WITH_EXACT_CHECKPOINT
+
+
+contrastive:
+
+  temperature: 0.07
+
+  projection_dim: 128
+
+  classification_weight: 1.0
+
+  contrastive_weight: 0.2
+
+
+evaluation:
+
+  threshold: 0.5
+
+  calibration_bins: 10
+
+
+output:
+
+  ml: results/ml
+  transformers: results/transformers
+  calibration: results/calibration
+  dca: results/dca
+  xai: results/xai
