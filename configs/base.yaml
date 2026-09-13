@@ -53,14 +53,10 @@ models:
     name: dmis-lab/biobert-base-cased-v1.1
 
   clinicalbert:
-    name: emilyalsentzer/ClinicalBERT
+    name: medicalai/ClinicalBERT
 
   bioclinicalbert:
     name: emilyalsentzer/Bio_ClinicalBERT
-
-  dischargebert:
-    #name: REPLACE_WITH_EXACT_CHECKPOINT
-
 
 contrastive:
 
