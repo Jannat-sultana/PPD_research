@@ -1,7 +1,33 @@
 from pathlib import Path
 
+import joblib
 import pandas as pd
 import yaml
+
+from sklearn.base import clone
+
+from sklearn.linear_model import (
+    LogisticRegression
+)
+
+from sklearn.ensemble import (
+    RandomForestClassifier,
+    ExtraTreesClassifier,
+    GradientBoostingClassifier,
+    HistGradientBoostingClassifier
+)
+
+from sklearn.svm import SVC
+
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    roc_auc_score,
+    average_precision_score,
+    confusion_matrix
+)
 
 
 # ============================================================
@@ -37,10 +63,73 @@ def load_config():
 
 
 # ============================================================
-# READ FEATURE FILE
+# MODELS
 # ============================================================
 
-def load_features(path):
+def get_models(
+    random_state=42
+):
+
+    models = {
+
+        "LogisticRegression":
+            LogisticRegression(
+                max_iter=2000,
+                class_weight="balanced",
+                random_state=random_state
+            ),
+
+        "RandomForest":
+            RandomForestClassifier(
+                n_estimators=500,
+                class_weight="balanced",
+                random_state=random_state,
+                n_jobs=-1
+            ),
+
+        "ExtraTrees":
+            ExtraTreesClassifier(
+                n_estimators=500,
+                class_weight="balanced",
+                random_state=random_state,
+                n_jobs=-1
+            ),
+
+        "GradientBoosting":
+            GradientBoostingClassifier(
+                n_estimators=200,
+                learning_rate=0.05,
+                max_depth=3,
+                random_state=random_state
+            ),
+
+        "HistGradientBoosting":
+            HistGradientBoostingClassifier(
+                max_iter=200,
+                learning_rate=0.05,
+                max_leaf_nodes=15,
+                random_state=random_state
+            ),
+
+        "SVM":
+            SVC(
+                kernel="rbf",
+                probability=True,
+                class_weight="balanced",
+                random_state=random_state
+            )
+    }
+
+    return models
+
+
+# ============================================================
+# LOAD FEATURES
+# ============================================================
+
+def load_features(
+    path
+):
 
     with open(
         path,
@@ -48,11 +137,132 @@ def load_features(path):
         encoding="utf-8"
     ) as f:
 
-        return [
+        features = [
             line.strip()
             for line in f
             if line.strip()
         ]
+
+    return features
+
+
+# ============================================================
+# PROBABILITY PREDICTION
+# ============================================================
+
+def get_probabilities(
+    model,
+    X
+):
+
+    if hasattr(
+        model,
+        "predict_proba"
+    ):
+
+        return model.predict_proba(
+            X
+        )[:, 1]
+
+    if hasattr(
+        model,
+        "decision_function"
+    ):
+
+        return model.decision_function(
+            X
+        )
+
+    raise ValueError(
+        "Model does not support "
+        "probability or decision predictions."
+    )
+
+
+# ============================================================
+# METRICS
+# ============================================================
+
+def calculate_metrics(
+    y_true,
+    y_pred,
+    y_prob
+):
+
+    tn, fp, fn, tp = (
+        confusion_matrix(
+            y_true,
+            y_pred,
+            labels=[0, 1]
+        ).ravel()
+    )
+
+    sensitivity = (
+        tp / (tp + fn)
+        if (tp + fn) > 0
+        else 0.0
+    )
+
+    specificity = (
+        tn / (tn + fp)
+        if (tn + fp) > 0
+        else 0.0
+    )
+
+    metrics = {
+
+        "accuracy":
+            accuracy_score(
+                y_true,
+                y_pred
+            ),
+
+        "precision":
+            precision_score(
+                y_true,
+                y_pred,
+                zero_division=0
+            ),
+
+        "sensitivity":
+            sensitivity,
+
+        "specificity":
+            specificity,
+
+        "f1":
+            f1_score(
+                y_true,
+                y_pred,
+                zero_division=0
+            ),
+
+        "roc_auc":
+            roc_auc_score(
+                y_true,
+                y_prob
+            ),
+
+        "pr_auc":
+            average_precision_score(
+                y_true,
+                y_prob
+            ),
+
+        "tn":
+            tn,
+
+        "fp":
+            fp,
+
+        "fn":
+            fn,
+
+        "tp":
+            tp
+    }
+
+    return metrics
 
 
 # ============================================================
@@ -67,37 +277,53 @@ def main():
         config["data"]["target"]
     )
 
-    # --------------------------------------------------------
-    # Load fixed train/test split
-    # --------------------------------------------------------
+    random_state = (
+        config["seed"]
+    )
 
-    train = pd.read_csv(
+    # ========================================================
+    # LOAD FIXED SPLIT
+    # ========================================================
+
+    train_path = (
         ROOT /
         config["data"]["train_path"]
     )
 
-    test = pd.read_csv(
+    test_path = (
         ROOT /
         config["data"]["test_path"]
     )
 
+    train = pd.read_csv(
+        train_path
+    )
+
+    test = pd.read_csv(
+        test_path
+    )
+
     print("=" * 70)
-    print("PREPARING ML ABLATION DATASETS")
+    print("ML ABLATION STUDY")
     print("=" * 70)
 
     print(
-        "Train shape:",
-        train.shape
+        f"Training samples: "
+        f"{len(train)}"
     )
 
     print(
-        "Test shape:",
-        test.shape
+        f"Test samples: "
+        f"{len(test)}"
     )
 
-    # --------------------------------------------------------
-    # Feature directory
-    # --------------------------------------------------------
+    print(
+        f"Target: {target}"
+    )
+
+    # ========================================================
+    # FEATURE SETS
+    # ========================================================
 
     feature_dir = (
         ROOT /
@@ -106,57 +332,103 @@ def main():
         "selected_features"
     )
 
-    # --------------------------------------------------------
-    # Output directory
-    # --------------------------------------------------------
+    feature_set_names = [
+        "all",
+        "rfecv",
+        "lasso",
+        "mrmr",
+        "combined"
+    ]
 
-    output_dir = (
-        ROOT /
-        "src" /
-        "processed" /
-        "ml_ablation"
+    # ========================================================
+    # MODELS
+    # ========================================================
+
+    models = get_models(
+        random_state=random_state
     )
 
-    output_dir.mkdir(
+    # ========================================================
+    # OUTPUT DIRECTORIES
+    # ========================================================
+
+    results_dir = (
+        ROOT /
+        "results" /
+        "ml"
+    )
+
+    predictions_dir = (
+        results_dir /
+        "predictions"
+    )
+
+    models_dir = (
+        results_dir /
+        "models"
+    )
+
+    results_dir.mkdir(
         parents=True,
         exist_ok=True
     )
 
-    # --------------------------------------------------------
-    # All feature-set files
-    # --------------------------------------------------------
-
-    feature_files = sorted(
-        feature_dir.glob("*.txt")
+    predictions_dir.mkdir(
+        parents=True,
+        exist_ok=True
     )
 
-    if not feature_files:
+    models_dir.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
-        raise FileNotFoundError(
-            f"No feature files found in "
-            f"{feature_dir}"
+    # ========================================================
+    # RESULTS
+    # ========================================================
+
+    all_results = []
+
+    # ========================================================
+    # FEATURE SET LOOP
+    # ========================================================
+
+    for feature_set_name in feature_set_names:
+
+        feature_file = (
+            feature_dir /
+            f"{feature_set_name}.txt"
         )
 
-    summary_rows = []
+        if not feature_file.exists():
 
-    # --------------------------------------------------------
-    # Process every feature set
-    # --------------------------------------------------------
-
-    for feature_file in feature_files:
-
-        feature_set_name = (
-            feature_file
-            .stem
-        )
+            raise FileNotFoundError(
+                f"Feature file not found:\n"
+                f"{feature_file}\n\n"
+                f"Run:\n"
+                f"python -m "
+                f"experiments.04_feature_selection"
+            )
 
         features = load_features(
             feature_file
         )
 
-        # ----------------------------------------------------
-        # Safety check
-        # ----------------------------------------------------
+        print("\n" + "=" * 70)
+        print(
+            f"FEATURE SET: "
+            f"{feature_set_name.upper()}"
+        )
+        print("=" * 70)
+
+        print(
+            f"Number of features: "
+            f"{len(features)}"
+        )
+
+        # ====================================================
+        # SAFETY CHECK
+        # ====================================================
 
         missing_train = [
             feature
@@ -173,93 +445,240 @@ def main():
         if missing_train:
 
             raise ValueError(
-                f"{feature_set_name}: "
-                f"missing features in train: "
+                f"Missing train features: "
                 f"{missing_train}"
             )
 
         if missing_test:
 
             raise ValueError(
-                f"{feature_set_name}: "
-                f"missing features in test: "
+                f"Missing test features: "
                 f"{missing_test}"
             )
 
-        # ----------------------------------------------------
-        # Create datasets
-        # ----------------------------------------------------
+        # ====================================================
+        # X / Y
+        # ====================================================
 
-        train_selected = train[
-            features + [target]
+        X_train = train[
+            features
         ].copy()
 
-        test_selected = test[
-            features + [target]
+        y_train = train[
+            target
         ].copy()
 
-        # ----------------------------------------------------
-        # Save
-        # ----------------------------------------------------
+        X_test = test[
+            features
+        ].copy()
 
-        train_output = (
-            output_dir /
-            f"{feature_set_name}_train.csv"
-        )
+        y_test = test[
+            target
+        ].copy()
 
-        test_output = (
-            output_dir /
-            f"{feature_set_name}_test.csv"
-        )
+        # ====================================================
+        # MODEL LOOP
+        # ====================================================
 
-        train_selected.to_csv(
-            train_output,
-            index=False
-        )
+        for model_name, base_model in models.items():
 
-        test_selected.to_csv(
-            test_output,
-            index=False
-        )
+            print(
+                f"\nTraining "
+                f"{model_name}..."
+            )
 
-        # ----------------------------------------------------
-        # Summary
-        # ----------------------------------------------------
+            model = clone(
+                base_model
+            )
 
-        summary_rows.append({
-            "feature_set": feature_set_name,
-            "n_features": len(features),
-            "train_rows": len(train_selected),
-            "test_rows": len(test_selected)
-        })
+            # ------------------------------------------------
+            # TRAIN
+            # ------------------------------------------------
 
-        print(
-            f"\n{feature_set_name}"
-        )
+            model.fit(
+                X_train,
+                y_train
+            )
 
-        print(
-            f"  Features: {len(features)}"
-        )
+            # ------------------------------------------------
+            # PREDICTION
+            # ------------------------------------------------
 
-        print(
-            f"  Train:    {train_output}"
-        )
+            y_pred = model.predict(
+                X_test
+            )
 
-        print(
-            f"  Test:     {test_output}"
-        )
+            y_prob = get_probabilities(
+                model,
+                X_test
+            )
 
-    # --------------------------------------------------------
-    # Save summary
-    # --------------------------------------------------------
+            # ------------------------------------------------
+            # METRICS
+            # ------------------------------------------------
 
-    summary = pd.DataFrame(
-        summary_rows
+            metrics = calculate_metrics(
+                y_true=y_test,
+                y_pred=y_pred,
+                y_prob=y_prob
+            )
+
+            result = {
+
+                "feature_set":
+                    feature_set_name.upper(),
+
+                "n_features":
+                    len(features),
+
+                "model":
+                    model_name,
+
+                **metrics
+            }
+
+            all_results.append(
+                result
+            )
+
+            # ------------------------------------------------
+            # PRINT RESULTS
+            # ------------------------------------------------
+
+            print(
+                f"  Accuracy:    "
+                f"{metrics['accuracy']:.4f}"
+            )
+
+            print(
+                f"  Precision:   "
+                f"{metrics['precision']:.4f}"
+            )
+
+            print(
+                f"  Sensitivity: "
+                f"{metrics['sensitivity']:.4f}"
+            )
+
+            print(
+                f"  Specificity: "
+                f"{metrics['specificity']:.4f}"
+            )
+
+            print(
+                f"  F1:          "
+                f"{metrics['f1']:.4f}"
+            )
+
+            print(
+                f"  ROC-AUC:     "
+                f"{metrics['roc_auc']:.4f}"
+            )
+
+            print(
+                f"  PR-AUC:      "
+                f"{metrics['pr_auc']:.4f}"
+            )
+
+            # =================================================
+            # SAVE TEST PREDICTIONS
+            # =================================================
+
+            predictions = pd.DataFrame({
+
+                "y_true":
+                    y_test.to_numpy(),
+
+                "y_pred":
+                    y_pred,
+
+                "y_probability":
+                    y_prob
+            })
+
+            prediction_path = (
+                predictions_dir /
+                f"{feature_set_name}_"
+                f"{model_name}_"
+                f"predictions.csv"
+            )
+
+            predictions.to_csv(
+                prediction_path,
+                index=False
+            )
+
+            # =================================================
+            # SAVE MODEL
+            # =================================================
+
+            model_path = (
+                models_dir /
+                f"{feature_set_name}_"
+                f"{model_name}.joblib"
+            )
+
+            joblib.dump(
+                model,
+                model_path
+            )
+
+    # ========================================================
+    # RESULTS DATAFRAME
+    # ========================================================
+
+    results = pd.DataFrame(
+        all_results
     )
 
+    # ========================================================
+    # SAVE COMPLETE RESULTS
+    # ========================================================
+
+    results_path = (
+        results_dir /
+        "ml_ablation_results.csv"
+    )
+
+    results.to_csv(
+        results_path,
+        index=False
+    )
+
+    # ========================================================
+    # SAVE CLEAN SUMMARY
+    # ========================================================
+
+    summary_columns = [
+
+        "feature_set",
+
+        "n_features",
+
+        "model",
+
+        "accuracy",
+
+        "precision",
+
+        "sensitivity",
+
+        "specificity",
+
+        "f1",
+
+        "roc_auc",
+
+        "pr_auc"
+    ]
+
+    summary = results[
+        summary_columns
+    ].copy()
+
     summary_path = (
-        output_dir /
-        "ablation_dataset_summary.csv"
+        results_dir /
+        "ml_ablation_summary.csv"
     )
 
     summary.to_csv(
@@ -267,18 +686,85 @@ def main():
         index=False
     )
 
+    # ========================================================
+    # BEST MODEL BY F1
+    # ========================================================
+
+    best_f1 = (
+        results
+        .sort_values(
+            "f1",
+            ascending=False
+        )
+        .iloc[0]
+    )
+
     print("\n" + "=" * 70)
-    print("COMPLETE")
+    print("BEST TEST-SET RESULT")
     print("=" * 70)
 
     print(
-        "Output directory:",
-        output_dir
+        f"Feature set: "
+        f"{best_f1['feature_set']}"
     )
 
     print(
-        "Summary:",
-        summary_path
+        f"Model:       "
+        f"{best_f1['model']}"
+    )
+
+    print(
+        f"Features:    "
+        f"{best_f1['n_features']}"
+    )
+
+    print(
+        f"F1:          "
+        f"{best_f1['f1']:.4f}"
+    )
+
+    print(
+        f"ROC-AUC:     "
+        f"{best_f1['roc_auc']:.4f}"
+    )
+
+    print(
+        f"PR-AUC:      "
+        f"{best_f1['pr_auc']:.4f}"
+    )
+
+    # ========================================================
+    # FINAL SUMMARY
+    # ========================================================
+
+    print("\n" + "=" * 70)
+    print("ML ABLATION SUMMARY")
+    print("=" * 70)
+
+    print(
+        summary.to_string(
+            index=False
+        )
+    )
+
+    print("\n" + "=" * 70)
+    print("FILES SAVED")
+    print("=" * 70)
+
+    print(
+        f"Results:\n{results_path}"
+    )
+
+    print(
+        f"\nSummary:\n{summary_path}"
+    )
+
+    print(
+        f"\nPredictions:\n{predictions_dir}"
+    )
+
+    print(
+        f"\nModels:\n{models_dir}"
     )
 
 

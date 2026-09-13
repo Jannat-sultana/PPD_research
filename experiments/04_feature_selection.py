@@ -5,10 +5,10 @@ import yaml
 
 from src.feature_selection.selector import (
     rfecv_selection,
-    rfe_selection,
-    anova_selection,
-    build_feature_sets,
-    save_feature_sets,
+    lasso_selection,
+    mrmr_selection_discrete,
+    build_ablation_feature_sets,
+    save_ablation_feature_sets,
     create_selection_report
 )
 
@@ -83,7 +83,7 @@ def main():
     )
 
     print(
-        f"Number of predictor features: "
+        f"Number of predictors: "
         f"{len(all_features)}"
     )
 
@@ -92,7 +92,11 @@ def main():
     # ========================================================
 
     rfecv_config = (
-        config["feature_selection"]["rfecv"]
+        config[
+            "feature_selection"
+        ][
+            "rfecv"
+        ]
     )
 
     rfecv_features = rfecv_selection(
@@ -108,9 +112,9 @@ def main():
         random_state=config["seed"]
     )
 
-    print("\n" + "-" * 70)
+    print("\n" + "=" * 70)
     print("RFECV")
-    print("-" * 70)
+    print("=" * 70)
 
     print(
         f"Number of features: "
@@ -123,71 +127,83 @@ def main():
         )
 
     # ========================================================
-    # RFE
+    # LASSO
     # ========================================================
 
-    rfe_config = (
-        config["feature_selection"]["rfe"]
+    lasso_config = (
+        config[
+            "feature_selection"
+        ][
+            "lasso"
+        ]
     )
 
-    rfe_features = rfe_selection(
+    lasso_features = lasso_selection(
         X,
         y,
-        n_features=rfe_config["n_features"],
+        C=lasso_config["C"],
+        max_iter=lasso_config["max_iter"],
         random_state=config["seed"]
     )
 
-    print("\n" + "-" * 70)
-    print("RFE")
-    print("-" * 70)
+    print("\n" + "=" * 70)
+    print("LASSO")
+    print("=" * 70)
 
     print(
         f"Number of features: "
-        f"{len(rfe_features)}"
+        f"{len(lasso_features)}"
     )
 
-    for feature in rfe_features:
+    for feature in lasso_features:
         print(
             f"  - {feature}"
         )
 
     # ========================================================
-    # ANOVA
+    # mRMR
     # ========================================================
 
-    anova_config = (
-        config["feature_selection"]["anova"]
+    mrmr_config = (
+        config[
+            "feature_selection"
+        ][
+            "mrmr"
+        ]
     )
 
-    anova_features = anova_selection(
+    mrmr_features = mrmr_selection_discrete(
         X,
         y,
-        k=anova_config["k"]
+        k=mrmr_config["k"],
+        random_state=config["seed"]
     )
 
-    print("\n" + "-" * 70)
-    print("ANOVA")
-    print("-" * 70)
+    print("\n" + "=" * 70)
+    print("mRMR")
+    print("=" * 70)
 
     print(
         f"Number of features: "
-        f"{len(anova_features)}"
+        f"{len(mrmr_features)}"
     )
 
-    for feature in anova_features:
+    for feature in mrmr_features:
         print(
             f"  - {feature}"
         )
 
     # ========================================================
-    # BUILD ALL ABLATION SETS
+    # BUILD ABLATION SETS
     # ========================================================
 
-    feature_sets = build_feature_sets(
-        all_features=all_features,
-        rfecv_features=rfecv_features,
-        rfe_features=rfe_features,
-        anova_features=anova_features
+    feature_sets = (
+        build_ablation_feature_sets(
+            all_features=all_features,
+            rfecv_features=rfecv_features,
+            lasso_features=lasso_features,
+            mrmr_features=mrmr_features
+        )
     )
 
     # ========================================================
@@ -195,18 +211,71 @@ def main():
     # ========================================================
 
     print("\n" + "=" * 70)
-    print("FEATURE SET SUMMARY")
+    print("ABLATION FEATURE SET SUMMARY")
     print("=" * 70)
 
     for name, features in feature_sets.items():
 
         print(
-            f"{name:<30} "
+            f"{name:<15} "
             f"{len(features):>3} features"
         )
 
     # ========================================================
-    # SAVE FEATURE SETS
+    # OVERLAP INFORMATION
+    # ========================================================
+
+    rfecv_set = set(
+        rfecv_features
+    )
+
+    lasso_set = set(
+        lasso_features
+    )
+
+    mrmr_set = set(
+        mrmr_features
+    )
+
+    print("\n" + "=" * 70)
+    print("FEATURE SELECTION OVERLAP")
+    print("=" * 70)
+
+    print(
+        "RFECV ∩ LASSO:",
+        len(
+            rfecv_set &
+            lasso_set
+        )
+    )
+
+    print(
+        "RFECV ∩ mRMR:",
+        len(
+            rfecv_set &
+            mrmr_set
+        )
+    )
+
+    print(
+        "LASSO ∩ mRMR:",
+        len(
+            lasso_set &
+            mrmr_set
+        )
+    )
+
+    print(
+        "All three:",
+        len(
+            rfecv_set &
+            lasso_set &
+            mrmr_set
+        )
+    )
+
+    # ========================================================
+    # SAVE FEATURE FILES
     # ========================================================
 
     feature_output_dir = (
@@ -216,20 +285,20 @@ def main():
         "selected_features"
     )
 
-    save_feature_sets(
+    save_ablation_feature_sets(
         feature_sets,
         feature_output_dir
     )
 
     # ========================================================
-    # SAVE SELECTION REPORT
+    # SAVE FEATURE REPORT
     # ========================================================
 
     report = create_selection_report(
         all_features=all_features,
         rfecv_features=rfecv_features,
-        rfe_features=rfe_features,
-        anova_features=anova_features
+        lasso_features=lasso_features,
+        mrmr_features=mrmr_features
     )
 
     report_dir = (
@@ -254,13 +323,16 @@ def main():
     )
 
     # ========================================================
-    # SAVE FEATURE-SET SUMMARY
+    # SAVE FEATURE SET SUMMARY
     # ========================================================
 
     summary = pd.DataFrame({
-        "feature_set": list(
-            feature_sets.keys()
-        ),
+
+        "feature_set":
+            list(
+                feature_sets.keys()
+            ),
+
         "n_features": [
             len(features)
             for features
@@ -279,28 +351,38 @@ def main():
     )
 
     # ========================================================
-    # FINAL OUTPUT
+    # DONE
     # ========================================================
 
     print("\n" + "=" * 70)
-    print("SAVED")
+    print("FEATURE SELECTION COMPLETE")
     print("=" * 70)
 
     print(
-        "Feature files:",
+        "\nFeature files saved to:"
+    )
+
+    print(
         feature_output_dir
     )
 
     print(
-        "Selection report:",
+        "\nFeature selection report:"
+    )
+
+    print(
         report_path
     )
 
     print(
-        "Feature-set summary:",
+        "\nFeature-set summary:"
+    )
+
+    print(
         summary_path
     )
 
 
 if __name__ == "__main__":
+
     main()

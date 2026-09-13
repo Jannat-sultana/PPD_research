@@ -110,3 +110,17 @@ output:
   calibration: results/calibration
   dca: results/dca
   xai: results/xai
+
+feature_selection:
+
+  rfecv:
+    cv: 5
+    step: 1
+    min_features_to_select: 5
+
+  lasso:
+    C: 0.1
+    max_iter: 5000
+
+  mrmr:
+    k: 10
