@@ -14,29 +14,6 @@ data:
   selected_features_path: src/processed/selected_features/selected_features.txt
 
 
-feature_selection:
-
-  # Maximum number of features to retain.
-  # Change after inspecting results.
-  n_features: 10
-
-  methods:
-    - rfecv
-    - rfe
-    - anova
-
-  rfecv:
-    step: 1
-    cv: 5
-    scoring: f1
-    min_features_to_select: 5
-
-  rfe:
-    n_features: 10
-
-  anova:
-    k: 10
-
 
 text:
 
