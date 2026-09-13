@@ -7,30 +7,55 @@ from src.feature_selection.selector import (
     rfecv_selection,
     rfe_selection,
     anova_selection,
-    save_features
+    build_feature_sets,
+    save_feature_sets,
+    create_selection_report
 )
 
 
-ROOT = Path(
-    __file__
-).resolve().parents[1]
+# ============================================================
+# PATHS
+# ============================================================
+
+ROOT = (
+    Path(__file__)
+    .resolve()
+    .parents[1]
+)
+
+CONFIG = (
+    ROOT /
+    "configs" /
+    "base.yaml"
+)
 
 
-CONFIG = ROOT / "configs" / "base.yaml"
-
+# ============================================================
+# CONFIG
+# ============================================================
 
 def load_config():
 
-    with open(CONFIG) as f:
+    with open(
+        CONFIG,
+        "r",
+        encoding="utf-8"
+    ) as f:
 
         return yaml.safe_load(f)
 
+
+# ============================================================
+# MAIN
+# ============================================================
 
 def main():
 
     config = load_config()
 
-    target = config["data"]["target"]
+    target = (
+        config["data"]["target"]
+    )
 
     train_path = (
         ROOT /
@@ -47,224 +72,180 @@ def main():
 
     y = df[target]
 
-    print("=" * 60)
+    all_features = X.columns.tolist()
+
+    print("=" * 70)
     print("FEATURE SELECTION")
-    print("=" * 60)
+    print("=" * 70)
 
     print(
-        "Training shape:",
-        df.shape
+        f"Training shape: {df.shape}"
     )
 
-    # --------------------------------------------------
+    print(
+        f"Number of predictor features: "
+        f"{len(all_features)}"
+    )
+
+    # ========================================================
     # RFECV
-    # --------------------------------------------------
+    # ========================================================
+
+    rfecv_config = (
+        config["feature_selection"]["rfecv"]
+    )
 
     rfecv_features = rfecv_selection(
         X,
         y,
-        cv=config["feature_selection"]
-        ["rfecv"]["cv"],
-        step=config["feature_selection"]
-        ["rfecv"]["step"],
-        min_features_to_select=config
-        ["feature_selection"]
-        ["rfecv"]
-        ["min_features_to_select"]
+        cv=rfecv_config["cv"],
+        step=rfecv_config["step"],
+        min_features_to_select=(
+            rfecv_config[
+                "min_features_to_select"
+            ]
+        ),
+        random_state=config["seed"]
     )
+
+    print("\n" + "-" * 70)
+    print("RFECV")
+    print("-" * 70)
 
     print(
-        "\nRFECV features:"
+        f"Number of features: "
+        f"{len(rfecv_features)}"
     )
 
-    print(
-        rfecv_features
-    )
+    for feature in rfecv_features:
+        print(
+            f"  - {feature}"
+        )
 
-    # --------------------------------------------------
+    # ========================================================
     # RFE
-    # --------------------------------------------------
+    # ========================================================
+
+    rfe_config = (
+        config["feature_selection"]["rfe"]
+    )
 
     rfe_features = rfe_selection(
         X,
         y,
-        config["feature_selection"]
-        ["rfe"]
-        ["n_features"]
+        n_features=rfe_config["n_features"],
+        random_state=config["seed"]
     )
+
+    print("\n" + "-" * 70)
+    print("RFE")
+    print("-" * 70)
 
     print(
-        "\nRFE features:"
+        f"Number of features: "
+        f"{len(rfe_features)}"
     )
 
-    print(
-        rfe_features
-    )
+    for feature in rfe_features:
+        print(
+            f"  - {feature}"
+        )
 
-    # --------------------------------------------------
+    # ========================================================
     # ANOVA
-    # --------------------------------------------------
+    # ========================================================
+
+    anova_config = (
+        config["feature_selection"]["anova"]
+    )
 
     anova_features = anova_selection(
         X,
         y,
-        config["feature_selection"]
-        ["anova"]
-        ["k"]
+        k=anova_config["k"]
     )
+
+    print("\n" + "-" * 70)
+    print("ANOVA")
+    print("-" * 70)
 
     print(
-        "\nANOVA features:"
+        f"Number of features: "
+        f"{len(anova_features)}"
     )
 
-    print(
-        anova_features
-    )
-
-    # --------------------------------------------------
-    # Consensus
-    # --------------------------------------------------
-
-    feature_sets = {
-        "RFECV": set(rfecv_features),
-        "RFE": set(rfe_features),
-        "ANOVA": set(anova_features)
-    }
-
-    consensus = (
-        feature_sets["RFECV"]
-        &
-        feature_sets["RFE"]
-        &
-        feature_sets["ANOVA"]
-    )
-
-    # If strict intersection is too small,
-    # use union frequency ranking.
-
-    if len(consensus) < 3:
-
-        frequency = {}
-
-        for features in feature_sets.values():
-
-            for feature in features:
-
-                frequency[feature] = (
-                    frequency.get(
-                        feature,
-                        0
-                    ) + 1
-                )
-
-        selected_features = [
-            feature
-            for feature, count
-            in sorted(
-                frequency.items(),
-                key=lambda x: (
-                    -x[1],
-                    x[0]
-                )
-            )
-            if count >= 2
-        ]
-
-    else:
-
-        selected_features = sorted(
-            consensus
+    for feature in anova_features:
+        print(
+            f"  - {feature}"
         )
 
-    print(
-        "\nFINAL SELECTED FEATURES:"
+    # ========================================================
+    # BUILD ALL ABLATION SETS
+    # ========================================================
+
+    feature_sets = build_feature_sets(
+        all_features=all_features,
+        rfecv_features=rfecv_features,
+        rfe_features=rfe_features,
+        anova_features=anova_features
     )
 
-    for feature in selected_features:
+    # ========================================================
+    # PRINT SUMMARY
+    # ========================================================
+
+    print("\n" + "=" * 70)
+    print("FEATURE SET SUMMARY")
+    print("=" * 70)
+
+    for name, features in feature_sets.items():
 
         print(
-            feature
+            f"{name:<30} "
+            f"{len(features):>3} features"
         )
 
-    output_path = (
+    # ========================================================
+    # SAVE FEATURE SETS
+    # ========================================================
+
+    feature_output_dir = (
         ROOT /
-        config["data"]
-        ["selected_features_path"]
+        "src" /
+        "processed" /
+        "selected_features"
     )
 
-    save_features(
-        selected_features,
-        output_path
+    save_feature_sets(
+        feature_sets,
+        feature_output_dir
     )
 
-    # --------------------------------------------------
-    # Save selection report
-    # --------------------------------------------------
+    # ========================================================
+    # SAVE SELECTION REPORT
+    # ========================================================
 
-    report = pd.DataFrame({
-
-        "feature": list(
-            set(
-                rfecv_features
-                +
-                rfe_features
-                +
-                anova_features
-            )
-        )
-
-    })
-
-    report[
-        "RFECV"
-    ] = report[
-        "feature"
-    ].isin(
-        rfecv_features
+    report = create_selection_report(
+        all_features=all_features,
+        rfecv_features=rfecv_features,
+        rfe_features=rfe_features,
+        anova_features=anova_features
     )
 
-    report[
-        "RFE"
-    ] = report[
-        "feature"
-    ].isin(
-        rfe_features
+    report_dir = (
+        ROOT /
+        "results" /
+        "feature_selection"
     )
 
-    report[
-        "ANOVA"
-    ] = report[
-        "feature"
-    ].isin(
-        anova_features
-    )
-
-    report[
-        "frequency"
-    ] = (
-        report[
-            [
-                "RFECV",
-                "RFE",
-                "ANOVA"
-            ]
-        ].sum(axis=1)
-    )
-
-    report = report.sort_values(
-        "frequency",
-        ascending=False
+    report_dir.mkdir(
+        parents=True,
+        exist_ok=True
     )
 
     report_path = (
-        ROOT /
-        "results" /
-        "feature_selection.csv"
-    )
-
-    report_path.parent.mkdir(
-        parents=True,
-        exist_ok=True
+        report_dir /
+        "feature_selection_summary.csv"
     )
 
     report.to_csv(
@@ -272,7 +253,54 @@ def main():
         index=False
     )
 
+    # ========================================================
+    # SAVE FEATURE-SET SUMMARY
+    # ========================================================
+
+    summary = pd.DataFrame({
+        "feature_set": list(
+            feature_sets.keys()
+        ),
+        "n_features": [
+            len(features)
+            for features
+            in feature_sets.values()
+        ]
+    })
+
+    summary_path = (
+        report_dir /
+        "feature_set_summary.csv"
+    )
+
+    summary.to_csv(
+        summary_path,
+        index=False
+    )
+
+    # ========================================================
+    # FINAL OUTPUT
+    # ========================================================
+
+    print("\n" + "=" * 70)
+    print("SAVED")
+    print("=" * 70)
+
+    print(
+        "Feature files:",
+        feature_output_dir
+    )
+
+    print(
+        "Selection report:",
+        report_path
+    )
+
+    print(
+        "Feature-set summary:",
+        summary_path
+    )
+
 
 if __name__ == "__main__":
-
     main()
